@@ -1,7 +1,25 @@
 import streamlit as st
 from dotenv import load_dotenv
 
+import os
+import streamlit as st
+from dotenv import load_dotenv
+
 load_dotenv()
+
+st.set_page_config(page_title="PDF Q&A", layout="wide")
+st.title("📚 PDF Q&A — Search and Answer")
+
+# --- Ingest PDFs section ---
+if st.button("Ingest PDFs from /pdfs"):
+    pdf_dir = "pdfs"
+    pdf_files = [os.path.join(pdf_dir, f) for f in os.listdir(pdf_dir) if f.lower().endswith(".pdf")]
+    if not pdf_files:
+        st.error("No PDF files found in /pdfs.")
+    else:
+        from doc_ingestion_utility import process_pdfs_to_chroma  # or your actual function
+        process_pdfs_to_chroma(pdf_files, persist_directory="doc_vectorstore")
+        st.success("Chroma DB built from PDFs!")
 
 st.set_page_config(page_title="PDF Q&A", layout="wide")
 st.title("📚 PDF Q&A — Search and Answer")
