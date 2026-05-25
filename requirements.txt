@@ -13,3 +13,7 @@ langchain-chroma
 nltk
 
 langchain-classic
+protobuf<4.24.0
+opentelemetry-api==1.22.0
+opentelemetry-sdk==1.22.0
+opentelemetry-exporter-otlp-proto-grpc==1.22.0
