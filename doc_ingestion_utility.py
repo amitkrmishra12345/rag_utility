@@ -20,7 +20,7 @@ if hf_token:
 
 def process_pdfs_to_chroma(
     files,
-    persist_directory: str = "doc_vectorstore",
+    persist_directory: str = "pdfs",
     chunk_size: int = 1000,
     chunk_overlap: int = 200,
     embedding_model=None,
@@ -77,7 +77,7 @@ def main():
     parser.add_argument("--files", "-f", nargs="+", help="PDF file(s) to ingest")
     parser.add_argument("--dir", "-d", help="Directory with PDF files to ingest")
     parser.add_argument(
-        "--persist", "-p", default="doc_vectorstore", help="Chroma persist directory"
+        "--persist", "-p", default="pdfs", help="Chroma persist directory"
     )
     args = parser.parse_args()
 
