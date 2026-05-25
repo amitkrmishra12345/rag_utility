@@ -19,5 +19,6 @@ opentelemetry-sdk==1.22.0
 opentelemetry-exporter-otlp-proto-grpc==1.22.0
 pdfminer.six
 pi-heif
-
+unstructured==0.12.6
+unstructured-inference==0.7.16
 
