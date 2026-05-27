@@ -11,10 +11,10 @@ nltk
 langchain-classic
 sentence-transformers
 unstructured
-unstructured-inference
-pdfminer.six
-pi-heif
-protobuf<4.24.0
-opentelemetry-api==1.22.0
-opentelemetry-sdk==1.22.0
-opentelemetry-exporter-otlp-proto-grpc==1.22.0
+#unstructured-inference
+#pdfminer.six
+#pi-heif
+#protobuf<4.24.0
+#opentelemetry-api==1.22.0
+#opentelemetry-sdk==1.22.0
+#opentelemetry-exporter-otlp-proto-grpc==1.22.0
