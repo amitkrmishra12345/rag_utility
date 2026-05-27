@@ -11,7 +11,7 @@ nltk
 langchain-classic
 sentence-transformers
 unstructured
-#unstructured-inference
+unstructured-inference
 pdfminer.six
 pi-heif
 protobuf==3.20.3
