@@ -13,7 +13,7 @@ sentence-transformers
 unstructured
 #unstructured-inference
 pdfminer.six
-#pi-heif
+pi-heif
 protobuf==3.20.3
 opentelemetry-api==1.22.0
 opentelemetry-sdk==1.22.0
