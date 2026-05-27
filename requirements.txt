@@ -12,7 +12,7 @@ langchain-classic
 sentence-transformers
 unstructured
 #unstructured-inference
-#pdfminer.six
+pdfminer.six
 #pi-heif
 protobuf==3.20.3
 opentelemetry-api==1.22.0
