@@ -1,98 +1,112 @@
 import os
-from dotenv import load_dotenv
 import argparse
+from dotenv import load_dotenv
 import logging
 
+from langchain_community.document_loaders import PyPDFLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
-from langchain_classic.chains.retrieval_qa.base import RetrievalQA
 
 
 load_dotenv()
-logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
-# Helper: load Chroma and return retriever and embedding
-def _load_retriever(persist_directory: str = "doc_vectorstore", k: int = 4):
+# Ensure HF token is available under common env names
+hf_token = os.getenv("HF_TOKEN") or os.getenv("HUGGINGFACEHUB_API_TOKEN")
+if hf_token:
+    os.environ["HF_TOKEN"] = hf_token
+    os.environ["HUGGINGFACEHUB_API_TOKEN"] = hf_token
+
+
+def process_pdfs_to_chroma(
+    files,
+    persist_directory: str = "doc_vectorstore",
+    chunk_size: int = 1000,
+    chunk_overlap: int = 200,
+    embedding_model=None,
+):
+    """Load one or more PDF files, split into chunks, embed and persist to Chroma.
+
+    Args:
+        files: list of file paths (or a single string path)
+        persist_directory: folder to persist Chroma DB
+        chunk_size: size of each text chunk
+        chunk_overlap: overlap between chunks
+        embedding_model: optional pre-instantiated embedding object
+    Returns:
+        number of documents/chunks added (int)
+    """
+    if isinstance(files, str):
+        files = [files]
+
     working_dir = os.path.dirname(os.path.abspath(__file__))
     persist_dir = os.path.join(working_dir, persist_directory)
-    if not os.path.isdir(persist_dir):
-        raise FileNotFoundError(f"Chroma persist directory not found: {persist_dir}")
+    os.makedirs(persist_dir, exist_ok=True)
 
-    embedding = HuggingFaceEmbeddings()
-    vectordb = Chroma(persist_directory=persist_dir, embedding_function=embedding)
-    retriever = vectordb.as_retriever(search_kwargs={"k": k})
-    return retriever, embedding, vectordb
+    if embedding_model is None:
+        embedding_model = HuggingFaceEmbeddings()
 
+    all_texts = []
+    for f in files:
+        path = f if os.path.isabs(f) else os.path.join(working_dir, f)
+        loader = PyPDFLoader(path)
+        docs = loader.load()
+        splitter = RecursiveCharacterTextSplitter(
+            chunk_size=chunk_size, chunk_overlap=chunk_overlap
+        )
+        chunks = splitter.split_documents(docs)
+        all_texts.extend(chunks)
 
-def _retrieve_documents(retriever, query: str):
-    # Debug: print available methods for this retriever
-    print("Retriever type:", type(retriever))
-    print("Retriever dir:", dir(retriever))
-    if hasattr(retriever, "get_relevant_documents"):
-        return retriever.get_relevant_documents(query)
-    if hasattr(retriever, "retrieve"):
-        return retriever.retrieve(query)
-    if hasattr(retriever, "get_relevant_texts"):
-        texts = retriever.get_relevant_texts(query)
-        return [type("Doc", (), {"page_content": t, "metadata": {}})() for t in texts]
-    # Fallback: use private _get_relevant_documents if available, with run_manager=None
-    if hasattr(retriever, "_get_relevant_documents"):
-        return retriever._get_relevant_documents(query, run_manager=None)
-    raise AttributeError(
-        f"Retriever object has no supported retrieval method (get_relevant_documents/retrieve/get_relevant_texts/_get_relevant_documents). Available: {dir(retriever)}"
+    if not all_texts:
+        return 0
+
+    vectordb = Chroma.from_documents(
+        documents=all_texts, embedding=embedding_model, persist_directory=persist_dir
     )
-
-
-def search_docs(query: str, k: int = 4, persist_directory: str = "doc_vectorstore"):
-    """Return top-k document chunks (texts + metadata) from Chroma for a query."""
-    retriever, _, _ = _load_retriever(persist_directory, k)
-    results = _retrieve_documents(retriever, query)
-    hits = []
-    for r in results:
-        hits.append({"page_content": getattr(r, "page_content", str(r)), "metadata": getattr(r, "metadata", {})})
-    return hits
-
-
-def answer_with_llm(query: str, k: int = 4, persist_directory: str = "doc_vectorstore"):
-    """Use configured LLM (if available) to answer a query using RetrievalQA.
-
-    This will raise a RuntimeError if no LLM is configured in the environment (see `rag_utility.py`).
-    """
-    # Lazy import rag_utility to reuse its LLM and embedding setup
+    # Ensure DB is persisted
     try:
-        from rag_utility import llm, embedding
-    except Exception as e:
-        raise RuntimeError("Could not import LLM from rag_utility: %s" % e)
+        vectordb.persist()
+    except Exception:
+        pass
 
-    if llm is None:
-        raise RuntimeError("LLM not configured; set GROQ_API_KEY or provide an LLM.")
-
-    retriever, _, _ = _load_retriever(persist_directory, k)
-    qa_chain = RetrievalQA.from_chain_type(llm=llm, chain_type="stuff", retriever=retriever)
-    response = qa_chain.invoke({"query": query})
-    return response.get("result")
+    return len(all_texts)
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Query Chroma vectorstore or ask via LLM")
-    parser.add_argument("query", help="Query text to search")
-    parser.add_argument("--k", type=int, default=4, help="Top-k passages to retrieve")
-    parser.add_argument("--persist", default="doc_vectorstore", help="Chroma persist directory")
-    parser.add_argument("--llm", action="store_true", help="Use LLM to produce an answer from retrieved docs")
+    parser = argparse.ArgumentParser(description="Ingest PDFs into Chroma vector store")
+    parser.add_argument("--files", "-f", nargs="+", help="PDF file(s) to ingest")
+    parser.add_argument("--dir", "-d", help="Directory with PDF files to ingest")
+    parser.add_argument(
+        "--persist", "-p", default="doc_vectorstore", help="Chroma persist directory"
+    )
     args = parser.parse_args()
 
-    if args.llm:
-        try:
-            answer = answer_with_llm(args.query, k=args.k, persist_directory=args.persist)
-            print("LLM Answer:\n", answer)
-        except Exception as e:
-            logging.error("LLM answer failed: %s", e)
-    else:
-        hits = search_docs(args.query, k=args.k, persist_directory=args.persist)
-        for i, h in enumerate(hits, 1):
-            print(f"--- Hit {i} ---")
-            print(h.get("page_content", ""))
-            print("metadata:", h.get("metadata", {}))
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+
+    files = []
+    if args.dir:
+        dirpath = args.dir if os.path.isabs(args.dir) else os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), args.dir
+        )
+        for fn in os.listdir(dirpath):
+            if fn.lower().endswith(".pdf"):
+                files.append(os.path.join(dirpath, fn))
+    if args.files:
+        files.extend(args.files)
+
+    if not files:
+        # If no files specified, default to ingesting all PDFs in the working directory
+        working_dir = os.path.dirname(os.path.abspath(__file__))
+        for fn in os.listdir(working_dir):
+            if fn.lower().endswith(".pdf"):
+                files.append(os.path.join(working_dir, fn))
+
+    if not files:
+        logging.error("No PDF files found in working directory and no args provided. Use --files or --dir to specify PDFs.")
+        return
+
+    count = process_pdfs_to_chroma(files, persist_directory=args.persist)
+    logging.info(f"Processed {len(files)} file(s), created {count} chunks in Chroma.")
 
 
 if __name__ == "__main__":
