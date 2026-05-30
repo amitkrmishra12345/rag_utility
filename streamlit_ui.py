@@ -126,21 +126,17 @@ if run:
         try:
             db = st.session_state.vectorstore
             if use_llm:
-                from user_query_retrieval_utility import answer_with_llm
+                from vectorstore_utility import answer_with_vectorstore
 
                 with st.spinner("Running LLM answer..."):
-                    answer = answer_with_llm(
-                        query, k=k, persist_directory=PERSIST_DIR, vectordb=db
-                    )
+                    answer = answer_with_vectorstore(query, db, k=k)
                 st.subheader("LLM Answer")
                 st.markdown(answer)
             else:
-                from user_query_retrieval_utility import search_docs
+                from vectorstore_utility import search_vectorstore
 
                 with st.spinner("Searching documents..."):
-                    hits = search_docs(
-                        query, k=k, persist_directory=PERSIST_DIR, vectordb=db
-                    )
+                    hits = search_vectorstore(query, db, k=k)
 
                 st.subheader(f"Top {len(hits)} hits")
                 for i, h in enumerate(hits, start=1):
