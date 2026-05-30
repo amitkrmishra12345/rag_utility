@@ -175,7 +175,5 @@ if run:
                 for i, h in enumerate(hits, start=1):
                     with st.expander(f"Hit {i}"):
                         st.write(h.get("page_content", ""))
-                        st.markdown("**Metadata**")
-                        st.json(h.get("metadata", {}))
         except Exception as e:
             st.error(f"Error: {e}")
