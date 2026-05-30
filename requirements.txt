@@ -1,21 +1,12 @@
-streamlit
+# Streamlit Cloud–friendly stack (no unstructured/onnx build)
 python-dotenv
+streamlit
+pypdf
+sentence-transformers
 langchain
 langchain-community
 langchain-huggingface
-langchain-chroma
-langchain-unstructured
-langchain-text-splitters
 langchain-groq
-nltk
+langchain-text-splitters
+langchain-chroma
 langchain-classic
-sentence-transformers
-unstructured
-unstructured-inference==0.6.5
-pdfminer.six
-pi-heif
-protobuf==3.20.3
-opentelemetry-api==1.22.0
-opentelemetry-sdk==1.22.0
-opentelemetry-exporter-otlp-proto-grpc==1.22.0
-torchvision
