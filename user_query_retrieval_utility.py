@@ -1,62 +1,38 @@
-import os
-from dotenv import load_dotenv
 import argparse
 import logging
 
-from vectorstore_utility import load_vectorstore
+from dotenv import load_dotenv
+
+from vectorstore_utility import (
+    answer_with_vectorstore,
+    load_vectorstore,
+    search_vectorstore,
+)
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
 
-def _load_retriever(persist_directory: str = "doc_vectorstore", k: int = 4):
-    vectordb = load_vectorstore(persist_directory)
-    retriever = vectordb.as_retriever(search_kwargs={"k": k})
-    return retriever, vectordb
+def search_docs(
+    query: str,
+    k: int = 4,
+    persist_directory: str = "doc_vectorstore",
+    vectordb=None,
+):
+    if vectordb is None:
+        vectordb = load_vectorstore(persist_directory)
+    return search_vectorstore(query, vectordb, k)
 
 
-def _retrieve_documents(retriever, query: str):
-    if hasattr(retriever, "invoke"):
-        return retriever.invoke(query)
-    if hasattr(retriever, "get_relevant_documents"):
-        return retriever.get_relevant_documents(query)
-    if hasattr(retriever, "retrieve"):
-        return retriever.retrieve(query)
-    raise AttributeError("Retriever does not support a known query API.")
-
-
-def search_docs(query: str, k: int = 4, persist_directory: str = "doc_vectorstore"):
-    """Return top-k document chunks from the FAISS index."""
-    retriever, _ = _load_retriever(persist_directory, k)
-    results = _retrieve_documents(retriever, query)
-    hits = []
-    for r in results:
-        hits.append(
-            {
-                "page_content": getattr(r, "page_content", str(r)),
-                "metadata": getattr(r, "metadata", {}),
-            }
-        )
-    return hits
-
-
-def answer_with_llm(query: str, k: int = 4, persist_directory: str = "doc_vectorstore"):
-    try:
-        from rag_utility import llm
-    except Exception as e:
-        raise RuntimeError("Could not import LLM from rag_utility: %s" % e)
-
-    if llm is None:
-        raise RuntimeError("LLM not configured; set GROQ_API_KEY or provide an LLM.")
-
-    from langchain_classic.chains.retrieval_qa.base import RetrievalQA
-
-    retriever, _ = _load_retriever(persist_directory, k)
-    qa_chain = RetrievalQA.from_chain_type(
-        llm=llm, chain_type="stuff", retriever=retriever
-    )
-    response = qa_chain.invoke({"query": query})
-    return response.get("result")
+def answer_with_llm(
+    query: str,
+    k: int = 4,
+    persist_directory: str = "doc_vectorstore",
+    vectordb=None,
+):
+    if vectordb is None:
+        vectordb = load_vectorstore(persist_directory)
+    return answer_with_vectorstore(query, vectordb, k)
 
 
 def main():
