@@ -65,3 +65,45 @@ def load_vectorstore(persist_directory: str = "doc_vectorstore", embedding_model
         embeddings,
         allow_dangerous_deserialization=True,
     )
+
+
+def _retrieve_documents(retriever, query: str):
+    if hasattr(retriever, "invoke"):
+        return retriever.invoke(query)
+    if hasattr(retriever, "get_relevant_documents"):
+        return retriever.get_relevant_documents(query)
+    if hasattr(retriever, "retrieve"):
+        return retriever.retrieve(query)
+    raise AttributeError("Retriever does not support a known query API.")
+
+
+def search_vectorstore(query: str, vectordb, k: int = 4):
+    """Return top-k chunks from an in-memory or loaded FAISS index."""
+    retriever = vectordb.as_retriever(search_kwargs={"k": k})
+    results = _retrieve_documents(retriever, query)
+    hits = []
+    for r in results:
+        hits.append(
+            {
+                "page_content": getattr(r, "page_content", str(r)),
+                "metadata": getattr(r, "metadata", {}),
+            }
+        )
+    return hits
+
+
+def answer_with_vectorstore(query: str, vectordb, k: int = 4):
+    """LLM answer using retrieved chunks from the given FAISS index."""
+    from rag_utility import llm
+
+    if llm is None:
+        raise RuntimeError("LLM not configured; set GROQ_API_KEY in secrets.")
+
+    from langchain_classic.chains.retrieval_qa.base import RetrievalQA
+
+    retriever = vectordb.as_retriever(search_kwargs={"k": k})
+    qa_chain = RetrievalQA.from_chain_type(
+        llm=llm, chain_type="stuff", retriever=retriever
+    )
+    response = qa_chain.invoke({"query": query})
+    return response.get("result")
