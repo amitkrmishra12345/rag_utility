@@ -16,6 +16,7 @@ def _upload_fingerprint(files) -> tuple:
 def index_uploaded_pdfs(uploaded_files):
     """Index PDFs; returns (chunk_count, vectorstore)."""
     from doc_ingestion_utility import process_pdfs_to_vectorstore
+    from vectorstore_utility import load_vectorstore
 
     paths = []
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -24,7 +25,14 @@ def index_uploaded_pdfs(uploaded_files):
             with open(path, "wb") as f:
                 f.write(uf.getbuffer())
             paths.append(path)
-        return process_pdfs_to_vectorstore(paths, persist_directory=PERSIST_DIR)
+        result = process_pdfs_to_vectorstore(paths, persist_directory=PERSIST_DIR)
+
+    if isinstance(result, tuple):
+        return result[0], result[1]
+    count = int(result)
+    if count <= 0:
+        return 0, None
+    return count, load_vectorstore(PERSIST_DIR)
 
 
 st.set_page_config(page_title="PDF Q&A", layout="wide")
