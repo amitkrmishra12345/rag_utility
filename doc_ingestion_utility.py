@@ -6,9 +6,19 @@ import logging
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from vectorstore_utility import add_documents
+from vectorstore_utility import add_documents, load_vectorstore
 
 load_dotenv()
+
+
+def _coerce_add_result(result, persist_directory: str, embedding_model=None):
+    """Support (count, db) or legacy int-only return from add_documents."""
+    if isinstance(result, tuple):
+        return result[0], result[1]
+    count = int(result)
+    if count <= 0:
+        return 0, None
+    return count, load_vectorstore(persist_directory, embedding_model)
 
 hf_token = os.getenv("HF_TOKEN") or os.getenv("HUGGINGFACEHUB_API_TOKEN")
 if hf_token:
@@ -38,7 +48,11 @@ def process_pdfs_to_vectorstore(
         )
         all_texts.extend(splitter.split_documents(docs))
 
-    return add_documents(all_texts, persist_directory, embedding_model)
+    if not all_texts:
+        return 0, None
+
+    result = add_documents(all_texts, persist_directory, embedding_model)
+    return _coerce_add_result(result, persist_directory, embedding_model)
 
 
 # Backward-compatible name used by older streamlit_ui copies
@@ -79,7 +93,7 @@ def main():
         )
         return
 
-    count = process_pdfs_to_vectorstore(files, persist_directory=args.persist)
+    count, _ = process_pdfs_to_vectorstore(files, persist_directory=args.persist)
     logging.info("Processed %s file(s), %s chunk(s) in vector store.", len(files), count)
 
 
