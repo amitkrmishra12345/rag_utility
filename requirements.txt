@@ -1,12 +1,12 @@
-# Streamlit Cloud–friendly stack (no unstructured/onnx build)
+# FAISS instead of Chroma — avoids protobuf/OpenTelemetry issues on Streamlit Cloud
 python-dotenv
 streamlit
 pypdf
+faiss-cpu
 sentence-transformers
 langchain
 langchain-community
 langchain-huggingface
 langchain-groq
 langchain-text-splitters
-langchain-chroma
 langchain-classic
