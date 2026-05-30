@@ -1,7 +1,6 @@
-import streamlit as st
-from dotenv import load_dotenv
-
 import os
+import tempfile
+
 import streamlit as st
 from dotenv import load_dotenv
 
@@ -10,33 +9,48 @@ load_dotenv()
 st.set_page_config(page_title="PDF Q&A", layout="wide")
 st.title("📚 PDF Q&A — Search and Answer")
 
-# --- Ingest PDFs section ---
-if st.button("Ingest PDFs from /pdfs"):
-    pdf_dir = "pdfs"
-    pdf_files = [os.path.join(pdf_dir, f) for f in os.listdir(pdf_dir) if f.lower().endswith(".pdf")]
-    if not pdf_files:
-        st.error("No PDF files found in /pdfs.")
-    else:
-        from doc_ingestion_utility import process_pdfs_to_chroma  # or your actual function
-        process_pdfs_to_chroma(pdf_files, persist_directory="doc_vectorstore")
-        st.success("Chroma DB built from PDFs!")
+st.subheader("1. Upload PDFs")
+uploaded_files = st.file_uploader(
+    "Upload PDF file(s) to index",
+    type=["pdf"],
+    accept_multiple_files=True,
+)
 
-st.set_page_config(page_title="PDF Q&A", layout="wide")
-st.title("📚 PDF Q&A — Search and Answer")
+if uploaded_files and st.button("Index uploaded PDFs"):
+    with st.spinner("Indexing PDFs..."):
+        try:
+            from doc_ingestion_utility import process_pdfs_to_vectorstore
+
+            paths = []
+            with tempfile.TemporaryDirectory() as tmpdir:
+                for uf in uploaded_files:
+                    path = os.path.join(tmpdir, uf.name)
+                    with open(path, "wb") as f:
+                        f.write(uf.getbuffer())
+                    paths.append(path)
+                chunk_count = process_pdfs_to_vectorstore(
+                    paths, persist_directory="doc_vectorstore"
+                )
+            st.success(f"Indexed {len(uploaded_files)} file(s), {chunk_count} chunk(s).")
+        except Exception as e:
+            st.error(f"Indexing failed: {e}")
+
+st.divider()
+st.subheader("2. Ask a question")
 
 col1, col2 = st.columns([3, 1])
 
 with col1:
     query = st.text_area("Enter your question or search query", height=120)
     k = st.number_input("Top-k passages to retrieve", min_value=1, max_value=20, value=4)
-    persist = st.text_input("Chroma persist directory", value="doc_vectorstore")
+    persist = st.text_input("Vector store directory", value="doc_vectorstore")
     use_llm = st.checkbox("Use LLM to generate an answer (requires GROQ_API_KEY)")
     run = st.button("Run")
 
 with col2:
     st.markdown("**Options**")
-    st.markdown("- Use LLM: uses `answer_with_llm()` from `user_query_retrieval_utility` if enabled")
-    st.markdown("- Search only: returns top-k chunks from Chroma")
+    st.markdown("- **Use LLM**: Groq answer from retrieved chunks")
+    st.markdown("- **Search only**: top-k passages from the index")
 
 if run:
     if not query or not query.strip():
