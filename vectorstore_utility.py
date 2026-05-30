@@ -26,12 +26,12 @@ def get_embeddings(embedding_model=None):
     return embedding_model
 
 
-def add_documents(chunks, persist_directory: str = "doc_vectorstore", embedding_model=None) -> int:
-    """Embed chunks and merge into on-disk FAISS index. Returns chunk count added."""
+def add_documents(chunks, persist_directory: str = "doc_vectorstore", embedding_model=None):
+    """Embed chunks and merge into on-disk FAISS index. Returns (chunk_count, FAISS db)."""
     from langchain_community.vectorstores import FAISS
 
     if not chunks:
-        return 0
+        return 0, None
 
     persist_dir = _persist_path(persist_directory)
     os.makedirs(persist_dir, exist_ok=True)
@@ -48,7 +48,7 @@ def add_documents(chunks, persist_directory: str = "doc_vectorstore", embedding_
         db = FAISS.from_documents(chunks, embeddings)
 
     db.save_local(persist_dir)
-    return len(chunks)
+    return len(chunks), db
 
 
 def load_vectorstore(persist_directory: str = "doc_vectorstore", embedding_model=None):
