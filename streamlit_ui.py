@@ -13,6 +13,43 @@ def _upload_fingerprint(files) -> tuple:
     return tuple((f.name, f.size) for f in files)
 
 
+def _retrieve_documents(retriever, query: str):
+    if hasattr(retriever, "invoke"):
+        return retriever.invoke(query)
+    if hasattr(retriever, "get_relevant_documents"):
+        return retriever.get_relevant_documents(query)
+    if hasattr(retriever, "retrieve"):
+        return retriever.retrieve(query)
+    raise AttributeError("Retriever does not support a known query API.")
+
+
+def search_index(query: str, vectordb, k: int = 4):
+    retriever = vectordb.as_retriever(search_kwargs={"k": k})
+    results = _retrieve_documents(retriever, query)
+    return [
+        {
+            "page_content": getattr(r, "page_content", str(r)),
+            "metadata": getattr(r, "metadata", {}),
+        }
+        for r in results
+    ]
+
+
+def answer_index(query: str, vectordb, k: int = 4):
+    from rag_utility import llm
+
+    if llm is None:
+        raise RuntimeError("LLM not configured; set GROQ_API_KEY in Streamlit secrets.")
+
+    from langchain_classic.chains.retrieval_qa.base import RetrievalQA
+
+    retriever = vectordb.as_retriever(search_kwargs={"k": k})
+    qa_chain = RetrievalQA.from_chain_type(
+        llm=llm, chain_type="stuff", retriever=retriever
+    )
+    return qa_chain.invoke({"query": query}).get("result")
+
+
 def index_uploaded_pdfs(uploaded_files):
     """Index PDFs; returns (chunk_count, vectorstore)."""
     from doc_ingestion_utility import process_pdfs_to_vectorstore
@@ -126,17 +163,13 @@ if run:
         try:
             db = st.session_state.vectorstore
             if use_llm:
-                from vectorstore_utility import answer_with_vectorstore
-
                 with st.spinner("Running LLM answer..."):
-                    answer = answer_with_vectorstore(query, db, k=k)
+                    answer = answer_index(query, db, k=k)
                 st.subheader("LLM Answer")
                 st.markdown(answer)
             else:
-                from vectorstore_utility import search_vectorstore
-
                 with st.spinner("Searching documents..."):
-                    hits = search_vectorstore(query, db, k=k)
+                    hits = search_index(query, db, k=k)
 
                 st.subheader(f"Top {len(hits)} hits")
                 for i, h in enumerate(hits, start=1):
